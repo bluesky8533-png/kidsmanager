@@ -10,25 +10,38 @@
   
   <title>우리아이 레벨업 매니저</title>
   
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
     @keyframes spin-slow { 100% { transform: rotate(360deg); } }
     @keyframes pop-in { 0% { transform: scale(0.5); opacity: 0; } 80% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
     @keyframes slide-up { 0% { transform: translate(-50%, 100%); opacity: 0; } 10% { transform: translate(-50%, 0); opacity: 1; } 90% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, 100%); opacity: 0; } }
     .animate-pop-in { animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    .animate-spin-slow { animation: spin-slow 12s linear infinite; }
+    .animate-float { animation: float 3s ease-in-out infinite; }
     .animate-toast { animation: slide-up 3s ease-in-out forwards; }
     
+    /* PWA Touch 최적화 및 텍스트 선택 방지 */
     body {
       -webkit-touch-callout: none;
       -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
       user-select: none;
       background-color: #F0F4F8;
     }
     
+    /* 탭 스크롤바 숨김 */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
@@ -39,17 +52,26 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- Icons ---
-    const IconClock = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-    const IconSparkles = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>;
-    const IconTrophy = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
-    const IconZap = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
-    const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
-    const IconShoppingBag = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>;
-    const IconGamepad = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/></svg>;
-    const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
+    // ----------------------------------------------------
+    // SVG Icons
+    // ----------------------------------------------------
+    const IconClock = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    const IconSparkles = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>;
+    const IconTrophy = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
+    const IconZap = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+    const IconCheckCircle = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+    const IconCircle = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/></svg>;
+    const IconTrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>;
+    const IconShoppingBag = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>;
+    const IconGamepad = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="2"/></svg>;
+    const IconAlertCircle = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
+    const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
+    const IconAlertOctagon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
+    const IconStar = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
 
-    // --- Data Factory ---
+    // ----------------------------------------------------
+    // Initial Data Factory
+    // ----------------------------------------------------
     const getInitialHabits = () => [
       { id: 1, text: '영양제 섭취', done: false },
       { id: 2, text: '9시 정각 취침', done: false },
@@ -59,10 +81,10 @@
     ];
 
     const getInitialLearning = () => ({
-      essentialMath: false, // 디딤돌 기본+응용/최상위
-      essentialEnglish: false, // 영어도서관 3권
-      additionalSubjectSets: 0, // 영어/국어/수학 세트
-      elihigh: false // 엘리하이
+      math: { baseDone: false, extra: 0 },
+      language: { baseDone: false, extra: 0 },
+      elihigh: { done: false },
+      englishBook: { done: false }
     });
 
     const createKidState = () => ({
@@ -76,69 +98,79 @@
 
     const rewardItems = [
       { id: 'game', name: '게임 30분', cost: 400, icon: IconGamepad, color: '#2A9D8F' },
-      { id: 'allowance1', name: '쌍둥이 용돈', cost: 1200, icon: IconTrophy, color: '#E9C46A' },
+      { id: 'allowance1', name: '쌍둥이 용돈', cost: 1200, icon: IconTrendingUp, color: '#E9C46A' },
       { id: 'allowance2', name: '윤지용돈/도서', cost: 2000, icon: IconShoppingBag, color: '#F4A261' },
       { id: 'date', name: '데이트권', cost: 3000, icon: IconTrophy, color: '#E76F51' }
     ];
 
+    // ----------------------------------------------------
+    // Main Component
+    // ----------------------------------------------------
     const App = () => {
+      // 공통 상태
       const kidsNames = ['듄지', '효니', '뀨리'];
       const [activeTab, setActiveTab] = useState(kidsNames[0]);
       const [currentTime, setCurrentTime] = useState(new Date());
-      const [testMode, setTestMode] = useState(false);
+      const [testMode, setTestMode] = useState(false); // 시간 조건(08:00~19:59) 무시 테스트 모드
       const [notification, setNotification] = useState(null);
       const notifyTimeout = useRef(null);
 
+      // 다중 프로필 인메모리 데이터 (초기화 주의)
       const [kidsData, setKidsData] = useState({
         '듄지': createKidState(),
         '효니': createKidState(),
         '뀨리': createKidState()
       });
 
+      // 팝업 및 폼 상태
       const [showPopup, setShowPopup] = useState(false);
+      const [adminForm, setAdminForm] = useState({ target: '듄지', amount: '', desc: '', type: 'add' });
       const [quickActionTarget, setQuickActionTarget] = useState('듄지');
 
+      // 1분마다 시계 갱신
       useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
         return () => clearInterval(timer);
       }, []);
 
+      // 토스트 알림 생성기
       const showNotification = (message, type = 'info') => {
         if (notifyTimeout.current) clearTimeout(notifyTimeout.current);
         setNotification({ message, type });
         notifyTimeout.current = setTimeout(() => setNotification(null), 3000);
       };
 
+      // 포인트 산출 핵심 엔진
       const calcKidPoints = (kid) => {
-        const habitPts = kid.habits.filter(h => h.done).length * 20;
-        const bonusPts = kid.earnedBonus ? 20 : 0;
+        const hPts = kid.habits.filter(h => h.done).length * 20;
+        const bPts = kid.earnedBonus ? 20 : 0;
+        const mPts = (kid.learning.math.baseDone ? 100 : 0) + (kid.learning.math.extra * 150);
+        const lPts = (kid.learning.language.baseDone ? 100 : 0) + (kid.learning.language.extra * 120);
+        const ePts = kid.learning.elihigh.done ? 100 : 0;
+        const engPts = kid.learning.englishBook.done ? 100 : 0;
         
-        // 필수 학습 포인트
-        const essentialMathPts = kid.learning.essentialMath ? 100 : 0;
-        const essentialEnglishPts = kid.learning.essentialEnglish ? 100 : 0;
+        const dailyLiveEarned = hPts + bPts + mPts + lPts + ePts + engPts;
+        const currentBalance = dailyLiveEarned + kid.adminAdjustments - kid.usedPoints;
         
-        // 추가 학습 포인트
-        const additionalSetsPts = kid.learning.additionalSubjectSets * 120; // 1세트당 120P (가정)
-        const elihighPts = kid.learning.elihigh ? 100 : 0;
-        
-        const totalEarned = habitPts + bonusPts + essentialMathPts + essentialEnglishPts + additionalSetsPts + elihighPts;
-        const currentBalance = totalEarned + kid.adminAdjustments - kid.usedPoints;
-        
-        return { 
-          habitPts, 
-          essentialPts: essentialMathPts + essentialEnglishPts, 
-          additionalPts: additionalSetsPts + elihighPts,
-          totalEarned, 
-          currentBalance 
-        };
+        return { habitPts: hPts, learningPts: mPts + lPts + ePts + engPts, dailyLiveEarned, currentBalance };
       };
 
+      // 개별 자녀 데이터 업데이트 Helper
       const updateKidData = (kidName, updater) => {
-        setKidsData(prev => ({ ...prev, [kidName]: updater(prev[kidName]) }));
+        setKidsData(prev => ({
+          ...prev,
+          [kidName]: updater(prev[kidName])
+        }));
       };
 
+      // ----------------------------------------------------
+      // Business Logic Actions
+      // ----------------------------------------------------
+
+      // 1. 습관 체크 (보너스 지급 로직 포함)
       const toggleHabit = (id) => {
-        if (activeTab === 'ADMIN') return;
+        if(activeTab === 'ADMIN') return;
+        
         updateKidData(activeTab, (kid) => {
           const newHabits = kid.habits.map(h => h.id === id ? { ...h, done: !h.done } : h);
           const isAllDone = newHabits.every(h => h.done);
@@ -147,50 +179,99 @@
           
           let newBonus = kid.earnedBonus;
           if (isAllDone && !kid.earnedBonus) {
-            if (isWithinTimeFrame) { newBonus = true; setShowPopup(true); }
-            else { showNotification('8~20시 사이에만 보너스가 지급됩니다.', 'info'); }
-          } else if (!isAllDone) { newBonus = false; }
+            if (isWithinTimeFrame) {
+              newBonus = true;
+              setShowPopup(true);
+            } else {
+              showNotification('5개 미션을 모두 완료했습니다! (보너스는 08:00~19:59에만 지급됩니다)', 'info');
+            }
+          } else if (!isAllDone && kid.earnedBonus) {
+            newBonus = false;
+          }
+
           return { ...kid, habits: newHabits, earnedBonus: newBonus };
         });
       };
 
-      const updateLearning = (field, value) => {
-        if (activeTab === 'ADMIN') return;
+      // 2. 학습 코인 업데이트
+      const updateLearning = (type, field, value) => {
+        if(activeTab === 'ADMIN') return;
+
         updateKidData(activeTab, (kid) => {
           const newLearning = { ...kid.learning };
-          if (field === 'additionalSubjectSets') {
-            newLearning[field] = Math.max(0, newLearning[field] + value);
+          const newTaskState = { ...newLearning[type] };
+
+          if (field === 'baseDone') {
+            newTaskState.baseDone = value;
+            if (!value && newTaskState.extra !== undefined) newTaskState.extra = 0;
+          } else if (field === 'extra') {
+            if (!newTaskState.baseDone) {
+                showNotification('기본 분량을 먼저 완료해야 추가 분량을 입력할 수 있습니다.', 'error');
+                return kid;
+            }
+            newTaskState[field] = Math.max(0, newTaskState[field] + value);
           } else {
-            newLearning[field] = value;
+            newTaskState[field] = value;
           }
+          
+          newLearning[type] = newTaskState;
           return { ...kid, learning: newLearning };
         });
       };
 
-      const handleQuickAction = (type, amount, desc) => {
-        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-        const finalAmt = type === 'add' ? amount : -amount;
-        updateKidData(quickActionTarget, (kid) => ({
-          ...kid,
-          adminAdjustments: kid.adminAdjustments + finalAmt,
-          history: [{ id: Date.now(), time: timeStr, type: type === 'add' ? 'admin_add' : 'admin_sub', amount, desc }, ...kid.history]
-        }));
-        showNotification(`${quickActionTarget} : ${desc} 처리 완료`, type === 'add' ? 'success' : 'error');
+      // 3. 리워드 구매
+      const purchaseReward = (cost, name) => {
+        if(activeTab === 'ADMIN') return;
+
+        const currentKid = kidsData[activeTab];
+        const { currentBalance } = calcKidPoints(currentKid);
+
+        if (currentBalance >= cost) {
+            const timestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            updateKidData(activeTab, (kid) => ({
+                ...kid,
+                usedPoints: kid.usedPoints + cost,
+                history: [{ id: Date.now(), time: timestamp, type: 'spend', amount: cost, desc: name }, ...kid.history]
+            }));
+            showNotification(`[${activeTab}] ${name} 교환 성공! (-${cost}P)`, 'success');
+        } else {
+            showNotification(`포인트가 부족합니다. (필요: ${cost}P / 현재: ${currentBalance}P)`, 'error');
+        }
       };
 
-      const purchaseReward = (item) => {
-        const pts = calcKidPoints(kidsData[activeTab]);
-        if (pts.currentBalance >= item.cost) {
-          const timeStr = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-          updateKidData(activeTab, (kid) => ({
-            ...kid,
-            usedPoints: kid.usedPoints + item.cost,
-            history: [{ id: Date.now(), time: timeStr, type: 'spend', amount: item.cost, desc: item.name }, ...kid.history]
-          }));
-          showNotification(`${item.name} 교환 성공!`, 'success');
-        } else {
-          showNotification('포인트가 부족합니다.', 'error');
-        }
+      // 4. 관리자 수동 처리 (일반 폼)
+      const handleAdminAdjustment = (e) => {
+        e.preventDefault();
+        const amt = parseInt(adminForm.amount);
+        if(!amt || isNaN(amt) || amt <= 0) return showNotification('올바른 금액을 입력하세요.', 'error');
+        if(!adminForm.desc) return showNotification('내역을 입력하세요.', 'error');
+
+        executeAdjustment(adminForm.target, adminForm.type === 'add', amt, `[관리자] ${adminForm.desc}`);
+        setAdminForm({ ...adminForm, amount: '', desc: '' });
+      };
+
+      // 5. 관리자 퀵 액션
+      const handleQuickAction = (type, amount, desc) => {
+        executeAdjustment(quickActionTarget, type === 'add', amount, `[퀵] ${desc}`);
+      };
+
+      // [공통 로직] 포인트 조정 및 히스토리 기록기
+      const executeAdjustment = (targetName, isAdd, amount, desc) => {
+        const timestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        const finalAmt = isAdd ? amount : -amount;
+
+        updateKidData(targetName, (kid) => ({
+          ...kid,
+          adminAdjustments: kid.adminAdjustments + finalAmt,
+          history: [{ 
+            id: Date.now(), 
+            time: timestamp, 
+            type: isAdd ? 'admin_add' : 'admin_sub', 
+            amount: amount, 
+            desc: desc 
+          }, ...kid.history]
+        }));
+        showNotification(`${targetName} : ${desc} 처리 완료`, isAdd ? 'success' : 'error');
       };
 
       const activeData = activeTab !== 'ADMIN' ? kidsData[activeTab] : null;
@@ -198,160 +279,405 @@
 
       return (
         <div className="min-h-screen text-[#1D3557] font-sans pb-24 relative overflow-x-hidden pt-safe">
+          
+          {/* 전역 토스트 알림 */}
           {notification && (
-            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex w-11/12 max-w-sm items-center gap-3 rounded-2xl p-4 shadow-2xl animate-toast ${notification.type === 'error' ? 'bg-red-50 text-red-700 border-2 border-red-200' : 'bg-[#1D3557] text-white'}`}>
-              <IconZap />
-              <p className="text-sm font-bold flex-1">{notification.message}</p>
+            <div className={`fixed bottom-6 left-1/2 z-[100] flex w-11/12 max-w-sm items-center gap-3 rounded-2xl p-4 shadow-2xl animate-toast ${
+              notification.type === 'error' ? 'bg-red-50 text-red-700 border-2 border-red-200' : 
+              notification.type === 'success' ? 'bg-[#06D6A0]/10 text-[#2A9D8F] border-2 border-[#06D6A0]/30' :
+              'bg-[#1D3557] text-white'
+            }`}>
+              {notification.type === 'error' ? <IconAlertCircle /> : <IconCheckCircle />}
+              <p className="text-sm font-bold leading-tight flex-1">{notification.message}</p>
             </div>
           )}
 
-          {showPopup && (
+          {/* 보너스 달성 팝업 */}
+          {showPopup && activeTab !== 'ADMIN' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1D3557]/80 backdrop-blur-md">
-              <div className="bg-white rounded-[2rem] p-8 text-center max-w-sm w-full animate-pop-in">
-                <div className="bg-[#E9C46A] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-white"><IconSparkles /></div>
-                <h2 className="text-2xl font-black text-[#E76F51] mb-2">MISSION CLEAR!</h2>
-                <div className="bg-gray-50 rounded-2xl p-4 border-2 border-dashed border-[#2A9D8F] mb-6 text-4xl font-black text-[#2A9D8F]">+20P</div>
-                <button onClick={() => setShowPopup(false)} className="w-full bg-[#1D3557] text-white py-4 rounded-xl font-black">확인</button>
+              <div className="relative bg-white rounded-[2rem] p-8 md:p-12 shadow-2xl text-center max-w-sm w-full animate-pop-in overflow-hidden">
+                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[conic-gradient(from_0deg,transparent_0_340deg,rgba(233,196,106,0.2)_340deg_360deg)] animate-spin-slow pointer-events-none"></div>
+                <div className="relative z-10">
+                  <div className="bg-[#E9C46A] w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg animate-float">
+                    <span className="text-white w-10 h-10"><IconSparkles /></span>
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-black text-[#E76F51] mb-2 tracking-tight">MISSION CLEAR!</h2>
+                  <p className="font-bold text-[#457B9D] mb-6">[{activeTab}] 5대 습관 완벽 달성</p>
+                  <div className="bg-gray-50 rounded-2xl p-6 border-2 border-dashed border-[#2A9D8F] mb-8 relative">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#2A9D8F] text-white text-xs font-bold px-3 py-1 rounded-full">
+                      보너스 지급
+                    </div>
+                    <span className="text-5xl font-black text-[#2A9D8F]">+20P</span>
+                  </div>
+                  <button onClick={() => setShowPopup(false)} className="w-full bg-[#1D3557] hover:bg-[#457B9D] text-white py-4 rounded-xl font-black text-lg shadow-lg">
+                    확인
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b">
-            <div className="px-4 py-2 border-b flex justify-between items-center bg-gray-50 text-[10px] text-gray-400 font-bold">
-              <div className="flex items-center gap-1"><IconClock /> {currentTime.toLocaleTimeString()} <button onClick={() => setTestMode(!testMode)} className="ml-2 underline">{testMode ? 'TEST' : ''}</button></div>
-              {activeTab !== 'ADMIN' && <div className="text-[#1D3557]">잔액: <span className="text-[#E76F51]">{activePts?.currentBalance}P</span></div>}
+          {/* Sticky 상단 헤더 & 네비게이션 */}
+          <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
+            <div className="px-4 md:px-6 py-2 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div className="flex items-center gap-1.5 text-gray-500">
+                <span className="w-3.5 h-3.5"><IconClock /></span>
+                <span className="font-bold text-[10px] md:text-xs">
+                  {currentTime.toLocaleDateString('ko-KR')} {currentTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <button onClick={() => setTestMode(!testMode)} className={`ml-2 px-1.5 py-0.5 text-[8px] font-bold rounded transition-colors ${testMode ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-400'}`}>
+                  {testMode ? '시간해제(TEST)' : '정상작동'}
+                </button>
+              </div>
+              {activeTab !== 'ADMIN' && (
+                <div className="flex items-center gap-1 text-[#1D3557]">
+                  <span className="text-[10px] font-bold">내 잔액:</span>
+                  <span className="font-black text-sm text-[#E76F51]">{activePts?.currentBalance}P</span>
+                </div>
+              )}
             </div>
-            <div className="flex overflow-x-auto no-scrollbar p-2 gap-2">
+            
+            <div className="flex overflow-x-auto no-scrollbar px-2 py-2 gap-2">
               {kidsNames.map(name => (
-                <button key={name} onClick={() => setActiveTab(name)} className={`flex-1 min-w-[70px] py-2 rounded-xl text-sm font-black ${activeTab === name ? 'bg-[#1D3557] text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100'}`}>{name}</button>
+                <button 
+                  key={name} 
+                  onClick={() => setActiveTab(name)}
+                  className={`flex-1 min-w-[70px] py-2.5 px-2 rounded-xl text-sm font-black transition-all ${
+                    activeTab === name 
+                      ? 'bg-[#1D3557] text-white shadow-md' 
+                      : 'bg-white text-gray-400 border border-gray-100 hover:bg-gray-50'
+                  }`}
+                >
+                  {name}
+                </button>
               ))}
-              <button onClick={() => setActiveTab('ADMIN')} className={`flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-black ${activeTab === 'ADMIN' ? 'bg-[#E76F51] text-white shadow-md' : 'bg-white text-gray-400 border border-gray-100'}`}><IconSettings /> 관리자</button>
+              <button 
+                onClick={() => setActiveTab('ADMIN')}
+                className={`flex items-center justify-center gap-1 px-4 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${
+                  activeTab === 'ADMIN' 
+                    ? 'bg-[#E76F51] text-white shadow-md' 
+                    : 'bg-white text-gray-400 border border-gray-100 hover:bg-gray-50'
+                }`}
+              >
+                <IconSettings /> 관리자
+              </button>
             </div>
           </div>
 
-          {activeTab === 'ADMIN' ? (
-            <main className="max-w-7xl mx-auto px-4 mt-6 space-y-6">
-              <h2 className="text-xl font-black border-l-4 border-[#E76F51] pl-3">부모님 관리창</h2>
+          {/* -------------------- ADMIN VIEW (부모님 모드) -------------------- */}
+          {activeTab === 'ADMIN' && (
+            <main className="max-w-7xl mx-auto px-4 mt-6 space-y-6 animate-pop-in">
+              <h2 className="text-2xl font-black mb-4 border-l-4 border-[#E76F51] pl-3">부모님 관리 대시보드</h2>
+              
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {kidsNames.map(name => {
                   const pts = calcKidPoints(kidsData[name]);
                   return (
-                    <div key={name} className="bg-white p-5 rounded-2xl shadow-sm border">
-                      <h3 className="text-lg font-black">{name}</h3>
-                      <div className="mt-2 text-xs text-gray-400 space-y-1">
-                        <div className="flex justify-between"><span>오늘 획득</span><span>+{pts.totalEarned}P</span></div>
-                        <div className="flex justify-between"><span>누적 사용</span><span>-{kidsData[name].usedPoints}P</span></div>
-                        <div className="flex justify-between font-black border-t pt-1 mt-1 text-[#1D3557]"><span>현재 잔액</span><span>{pts.currentBalance}P</span></div>
+                    <div key={name} className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-gray-100 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-gray-50 rounded-bl-[100%] z-0"></div>
+                      <h3 className="text-lg font-black relative z-10">{name}</h3>
+                      <div className="mt-4 space-y-1 relative z-10">
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>오늘 과업 획득</span>
+                          <span className="font-bold text-[#457B9D]">+{pts.dailyLiveEarned}P</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>누적 사용 (차감)</span>
+                          <span className="font-bold text-[#E76F51]">-{kidsData[name].usedPoints}P</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>수동 조정 (보너스/패널티)</span>
+                          <span className="font-bold text-gray-700">{kidsData[name].adminAdjustments}P</span>
+                        </div>
+                        <div className="h-px bg-gray-100 my-2"></div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold">현재 사용 가능 잔액</span>
+                          <span className="text-xl font-black text-[#1D3557]">{pts.currentBalance}P</span>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border-2 border-orange-100">
-                <h3 className="text-base font-black mb-4 flex items-center gap-2 text-[#1D3557]"><IconZap /> 빠른 포인트 조정</h3>
-                <select value={quickActionTarget} onChange={e => setQuickActionTarget(e.target.value)} className="w-full mb-4 p-2 border rounded-xl font-black text-sm">
-                  {kidsNames.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <div className="grid grid-cols-1 gap-2">
-                  <button onClick={() => handleQuickAction('sub', 50, '학습 무성의/오답 과다')} className="flex justify-between items-center p-3 bg-red-50 text-red-600 rounded-xl border border-red-200">
-                    <span className="text-xs font-bold">무성의/오답 과다</span><span className="font-black">-50P</span>
+              {/* Quick Actions */}
+              <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border-2 border-gray-100 relative overflow-hidden">
+                <div className="absolute -right-6 -top-6 opacity-10"><IconZap width="100" height="100" /></div>
+                <h3 className="text-base font-black mb-4 flex items-center gap-2 text-[#1D3557]">
+                  ⚡ 빠른 보상 및 패널티 (행동 강화/교정)
+                </h3>
+                
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-bold text-gray-500 shrink-0">대상 자녀 선택:</span>
+                  <select 
+                    value={quickActionTarget}
+                    onChange={e => setQuickActionTarget(e.target.value)}
+                    className="border-2 border-gray-200 rounded-xl px-4 py-2 text-sm font-black focus:border-[#457B9D] focus:outline-none bg-gray-50 flex-1 sm:flex-none"
+                  >
+                    {kidsNames.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+                  <button onClick={() => handleQuickAction('sub', 50, '오답 과다 및 무성의한 학습')}
+                    className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-colors active:scale-95">
+                    <IconAlertOctagon className="mb-1" />
+                    <span className="text-xs font-bold">오답/무성의 학습</span>
+                    <span className="text-lg font-black">-50P 차감</span>
                   </button>
-                  <button onClick={() => handleQuickAction('sub', 50, '거짓말/정직 위반')} className="flex justify-between items-center p-3 bg-red-50 text-red-600 rounded-xl border border-red-200">
-                    <span className="text-xs font-bold">거짓말 적발</span><span className="font-black">-50P</span>
+                  <button onClick={() => handleQuickAction('sub', 50, '거짓말 (정직성 위반)')}
+                    className="flex flex-col items-center justify-center p-3 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-colors active:scale-95">
+                    <IconAlertCircle className="mb-1" />
+                    <span className="text-xs font-bold">거짓말 적발</span>
+                    <span className="text-lg font-black">-50P 차감</span>
                   </button>
-                  <button onClick={() => handleQuickAction('add', 50, '개별 미션 수행')} className="flex justify-between items-center p-3 bg-green-50 text-green-600 rounded-xl border border-green-200">
-                    <span className="text-xs font-bold">개별 미션 성공</span><span className="font-black">+50P</span>
+                  <button onClick={() => handleQuickAction('add', 50, '개별 특별 미션 성공')}
+                    className="flex flex-col items-center justify-center p-3 bg-[#06D6A0]/10 text-[#2A9D8F] border border-[#06D6A0]/30 rounded-xl hover:bg-[#06D6A0]/20 transition-colors active:scale-95">
+                    <IconStar className="mb-1" />
+                    <span className="text-xs font-bold">개별 미션 성공</span>
+                    <span className="text-lg font-black">+50P 지급</span>
                   </button>
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border">
-                <h3 className="text-sm font-black mb-3 text-gray-400">최근 히스토리</h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+              {/* Manual Form */}
+              <div className="bg-[#1D3557] text-white p-5 rounded-[1.5rem] shadow-md">
+                <h3 className="text-sm font-bold text-[#E9C46A] mb-4">포인트 수동 직접 입력</h3>
+                <form onSubmit={handleAdminAdjustment} className="flex flex-col sm:flex-row gap-3">
+                  <select 
+                    value={adminForm.target} 
+                    onChange={e => setAdminForm({...adminForm, target: e.target.value})}
+                    className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
+                  >
+                    {kidsNames.map(n => <option key={n} value={n} className="text-black">{n}</option>)}
+                  </select>
+                  <select 
+                    value={adminForm.type} 
+                    onChange={e => setAdminForm({...adminForm, type: e.target.value})}
+                    className={`border rounded-xl px-3 py-2 text-sm font-bold focus:outline-none ${adminForm.type==='add' ? 'bg-[#06D6A0]/20 border-[#06D6A0] text-[#06D6A0]' : 'bg-[#E76F51]/20 border-[#E76F51] text-[#E76F51]'}`}
+                  >
+                    <option value="add" className="text-black">지급 (+)</option>
+                    <option value="sub" className="text-black">차감 (-)</option>
+                  </select>
+                  <input 
+                    type="number" 
+                    placeholder="금액 (P)" 
+                    value={adminForm.amount}
+                    onChange={e => setAdminForm({...adminForm, amount: e.target.value})}
+                    className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm text-white focus:outline-none w-full sm:w-24 placeholder-white/40"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="상세 내역 입력" 
+                    value={adminForm.desc}
+                    onChange={e => setAdminForm({...adminForm, desc: e.target.value})}
+                    className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm text-white focus:outline-none flex-1 placeholder-white/40"
+                  />
+                  <button type="submit" className="bg-[#E9C46A] text-[#1D3557] font-black rounded-xl px-6 py-2 text-sm hover:scale-105 transition-transform">
+                    적용
+                  </button>
+                </form>
+              </div>
+
+              {/* History Log */}
+              <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-gray-100">
+                <h3 className="text-sm font-black mb-4">최근 처리 내역 로그</h3>
+                <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                   {kidsNames.flatMap(n => kidsData[n].history.map(h => ({...h, kid: n})))
                     .sort((a,b) => b.id - a.id)
-                    .map(h => (
-                      <div key={h.id} className="text-[11px] p-2 border-b flex justify-between items-center">
-                        <span><b>{h.kid}</b> {h.desc}</span>
-                        <span className={`font-black ${h.type.includes('sub') || h.type === 'spend' ? 'text-red-500' : 'text-green-600'}`}>
-                          {h.type.includes('sub') || h.type === 'spend' ? '-' : '+'}{h.amount}P
-                        </span>
+                    .map((item) => (
+                    <div key={`${item.kid}-${item.id}`} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] bg-[#1D3557] text-white px-2 py-0.5 rounded-full font-bold">{item.kid}</span>
+                          <span className="text-[10px] text-gray-400">{item.time}</span>
+                        </div>
+                        <p className="text-xs font-bold text-[#1D3557] mt-1">{item.desc}</p>
                       </div>
-                    ))}
+                      <span className={`text-sm font-black ${item.type === 'spend' || item.type === 'admin_sub' ? 'text-[#E76F51]' : 'text-[#06D6A0]'}`}>
+                        {item.type === 'spend' || item.type === 'admin_sub' ? '-' : '+'}{item.amount}P
+                      </span>
+                    </div>
+                  ))}
+                  {kidsNames.every(n => kidsData[n].history.length === 0) && (
+                    <p className="text-xs text-gray-400 text-center py-4">사용 내역이나 관리자 조정 로그가 없습니다.</p>
+                  )}
                 </div>
               </div>
             </main>
-          ) : (
-            <main className="max-w-7xl mx-auto px-4 mt-6 space-y-6">
-              <div className="bg-[#1D3557] p-6 rounded-[2rem] text-white shadow-lg">
-                <h1 className="text-2xl font-black">{activeTab}의 레벨업</h1>
-                <p className="text-[10px] text-orange-200 opacity-80 mt-1 italic">"정석 식단처럼, 정석 습관으로 48kg 목표 달성!"</p>
+          )}
+
+          {/* -------------------- KID VIEW (자녀 개별 모드) -------------------- */}
+          {activeTab !== 'ADMIN' && (
+            <main className="max-w-7xl mx-auto px-4 mt-6 space-y-6 animate-pop-in">
+              <div className="bg-gradient-to-r from-[#1D3557] to-[#457B9D] p-6 rounded-[2rem] text-white shadow-lg relative overflow-hidden">
+                <div className="absolute -right-4 -bottom-4 opacity-20 transform rotate-12"><IconTrophy /></div>
+                <h1 className="text-2xl font-black mb-1">{activeTab}의 레벨업 현황</h1>
+                <p className="text-xs text-[#E9C46A] opacity-90 font-medium">성실함은 배신하지 않는다!</p>
               </div>
 
-              {/* 생활 습관 */}
-              <section className="bg-white rounded-[1.5rem] p-5 shadow-sm border">
-                <h2 className="text-lg font-black mb-4 flex items-center gap-2"><IconSparkles /> 5대 생활 습관</h2>
-                <div className="grid grid-cols-1 gap-2">
-                  {activeData.habits.map(h => (
-                    <button key={h.id} onClick={() => toggleHabit(h.id)} className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${h.done ? 'bg-green-50 border-green-200' : 'bg-white border-gray-50'}`}>
-                      <span className={`font-bold text-xs ${h.done ? 'text-green-700' : 'text-gray-400'}`}>{h.text}</span>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${h.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-200'}`}>
-                        {h.done && <IconCheck />}
+              {/* 5대 습관 */}
+              <section className="bg-white rounded-[1.5rem] p-5 shadow-md border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 left-0 h-1.5 bg-gray-100 w-full">
+                  <div className="h-full bg-[#06D6A0] transition-all duration-500 ease-out"
+                       style={{ width: `${(activeData.habits.filter(h=>h.done).length / 5) * 100}%` }} />
+                </div>
+                <div className="flex flex-col lg:flex-row gap-5 items-start mt-2">
+                  <div className="w-full lg:w-1/3">
+                    <h2 className="text-lg font-black mb-1 flex items-center gap-1.5">
+                      <span className="text-[#E9C46A] w-4 h-4"><IconSparkles /></span> 5대 생활 습관
+                    </h2>
+                    <p className="text-gray-400 text-[10px] mb-3">각 미션 20P / 08~20시 올클리어 20P 추가</p>
+                    
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[11px] font-bold text-gray-500">습관 달성</span>
+                        <span className="font-black text-[#1D3557]">{activePts.habitPts}P</span>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {/* 필수 학습 */}
-              <section className="space-y-4">
-                <h2 className="text-lg font-black border-l-4 border-red-500 pl-2">필수 학습 (각 100P)</h2>
-                <div className="grid grid-cols-1 gap-3">
-                  <button onClick={() => updateLearning('essentialMath', !activeData.learning.essentialMath)} className={`p-4 rounded-2xl border-2 flex justify-between items-center ${activeData.learning.essentialMath ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-100'}`}>
-                    <span className="text-sm font-black">디딤돌 기본+응용 / 최상위</span>
-                    <span className="font-black">100P</span>
-                  </button>
-                  <button onClick={() => updateLearning('essentialEnglish', !activeData.learning.essentialEnglish)} className={`p-4 rounded-2xl border-2 flex justify-between items-center ${activeData.learning.essentialEnglish ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-100'}`}>
-                    <span className="text-sm font-black">영어도서관 3권 읽기</span>
-                    <span className="font-black">100P</span>
-                  </button>
-                </div>
-              </section>
-
-              {/* 추가 학습 */}
-              <section className="space-y-4">
-                <h2 className="text-lg font-black border-l-4 border-blue-500 pl-2">추가 학습</h2>
-                <div className="bg-white p-5 rounded-2xl border shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-sm font-black text-blue-700">영어 / 국어 / 수학 (세트당 120P)</span>
-                    <span className="font-black text-blue-500">{activeData.learning.additionalSubjectSets * 120}P</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[11px] font-bold text-gray-500">올클리어 보너스</span>
+                        <span className={`font-black ${activeData.earnedBonus ? 'text-[#06D6A0]' : 'text-gray-300'}`}>
+                          {activeData.earnedBonus ? '+ 20P' : '0P'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center border rounded-xl overflow-hidden">
-                    <button onClick={() => updateLearning('additionalSubjectSets', -1)} className="flex-1 py-3 bg-gray-50 font-black">-</button>
-                    <span className="flex-1 text-center font-black text-sm">{activeData.learning.additionalSubjectSets} 세트</span>
-                    <button onClick={() => updateLearning('additionalSubjectSets', 1)} className="flex-1 py-3 bg-gray-50 font-black">+</button>
+
+                  <div className="w-full lg:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {activeData.habits.map((habit) => (
+                      <button key={habit.id} onClick={() => toggleHabit(habit.id)}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                          habit.done ? 'bg-[#2A9D8F]/10 border-[#2A9D8F]' : 'bg-white border-gray-100'
+                        }`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`shrink-0 w-5 h-5 ${habit.done ? 'text-[#2A9D8F]' : 'text-gray-300'}`}>
+                            {habit.done ? <IconCheckCircle /> : <IconCircle />}
+                          </div>
+                          <span className={`font-bold text-xs ${habit.done ? 'text-[#1D3557]' : 'text-gray-500'}`}>
+                            {habit.text}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-bold ${habit.done ? 'text-[#2A9D8F]' : 'text-gray-300'}`}>+20P</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <button onClick={() => updateLearning('elihigh', !activeData.learning.elihigh)} className={`w-full p-4 rounded-2xl border-2 flex justify-between items-center ${activeData.learning.elihigh ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-100'}`}>
-                  <span className="text-sm font-black">엘리하이 학습</span>
-                  <span className="font-black">100P</span>
-                </button>
               </section>
 
-              {/* 보상 상점 */}
-              <section className="bg-white p-5 rounded-[1.5rem] border shadow-sm">
-                <h2 className="text-lg font-black mb-4 flex items-center gap-2"><IconShoppingBag /> 보상 상점</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {rewardItems.map(item => (
-                    <button key={item.id} onClick={() => purchaseReward(item)} className="p-4 border rounded-2xl flex flex-col items-center gap-2 active:scale-95 transition-transform bg-white">
-                      <div style={{ color: item.color }}><item.icon /></div>
-                      <span className="text-[10px] font-bold text-gray-400">{item.name}</span>
-                      <span className="font-black text-sm">{item.cost}P</span>
-                    </button>
-                  ))}
+              {/* 학습 코인 */}
+              <section>
+                <h2 className="text-lg font-black mb-3 border-l-4 border-[#E76F51] pl-2 text-[#1D3557]">학습 과업</h2>
+                <div className="space-y-3">
+                  
+                  {/* 수학 */}
+                  <div className={`bg-white p-4 rounded-[1.5rem] shadow-sm border border-gray-100 transition-all ${activeData.learning.math.baseDone ? 'ring-2 ring-[#E76F51]/20' : ''}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-black text-sm mb-0.5 text-[#E76F51]">📐 수학 (디딤돌)</h4>
+                        <p className="text-gray-400 text-[9px]">기본 1장 100P / 추가 1장 150P</p>
+                      </div>
+                      <span className="font-black text-[#1D3557]">
+                        {(activeData.learning.math.baseDone ? 100 : 0) + (activeData.learning.math.extra * 150)}P
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => updateLearning('math', 'baseDone', !activeData.learning.math.baseDone)}
+                        className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-colors ${activeData.learning.math.baseDone ? 'bg-[#E76F51] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                        {activeData.learning.math.baseDone ? '기본 완료 (추가 잠금해제됨)' : '기본 체크'}
+                      </button>
+                      <div className={`flex flex-1 items-center rounded-lg overflow-hidden border ${activeData.learning.math.baseDone ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-50'}`}>
+                        <button onClick={() => updateLearning('math', 'extra', -1)} disabled={!activeData.learning.math.baseDone} className="px-3 text-gray-600 font-black">-</button>
+                        <span className="flex-1 text-center font-bold text-[10px]">추가 {activeData.learning.math.extra}장</span>
+                        <button onClick={() => updateLearning('math', 'extra', 1)} disabled={!activeData.learning.math.baseDone} className="px-3 text-gray-600 font-black">+</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 국영연 */}
+                  <div className={`bg-white p-4 rounded-[1.5rem] shadow-sm border border-gray-100 transition-all ${activeData.learning.language.baseDone ? 'ring-2 ring-[#457B9D]/20' : ''}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-black text-sm mb-0.5 text-[#457B9D]">📖 국/영/연산</h4>
+                        <p className="text-gray-400 text-[9px]">기본 2장 100P / 추가 2장 120P</p>
+                      </div>
+                      <span className="font-black text-[#1D3557]">
+                        {(activeData.learning.language.baseDone ? 100 : 0) + (activeData.learning.language.extra * 120)}P
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => updateLearning('language', 'baseDone', !activeData.learning.language.baseDone)}
+                        className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-colors ${activeData.learning.language.baseDone ? 'bg-[#457B9D] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                        {activeData.learning.language.baseDone ? '기본 완료 (추가 잠금해제됨)' : '기본 체크'}
+                      </button>
+                      <div className={`flex flex-1 items-center rounded-lg overflow-hidden border ${activeData.learning.language.baseDone ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-50'}`}>
+                        <button onClick={() => updateLearning('language', 'extra', -1)} disabled={!activeData.learning.language.baseDone} className="px-3 text-gray-600 font-black">-</button>
+                        <span className="flex-1 text-center font-bold text-[10px]">추가 {activeData.learning.language.extra}셋</span>
+                        <button onClick={() => updateLearning('language', 'extra', 1)} disabled={!activeData.learning.language.baseDone} className="px-3 text-gray-600 font-black">+</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 엘리하이 & 영어책 */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer transition-all ${activeData.learning.elihigh.done ? 'ring-2 ring-[#2A9D8F]/20 bg-[#2A9D8F]/5' : ''}`}
+                         onClick={() => updateLearning('elihigh', 'done', !activeData.learning.elihigh.done)}>
+                      <h4 className="font-black text-[11px] mb-1">💻 엘리하이</h4>
+                      <div className="flex justify-between items-center">
+                        <p className="text-gray-400 text-[9px]">100P</p>
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${activeData.learning.elihigh.done ? 'text-[#2A9D8F]' : 'text-gray-200'}`}>
+                          {activeData.learning.elihigh.done ? <IconCheckCircle /> : <IconCircle />}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`bg-white p-3 rounded-xl shadow-sm border border-gray-100 cursor-pointer transition-all ${activeData.learning.englishBook.done ? 'ring-2 ring-[#E9C46A]/20 bg-[#E9C46A]/5' : ''}`}
+                         onClick={() => updateLearning('englishBook', 'done', !activeData.learning.englishBook.done)}>
+                      <h4 className="font-black text-[11px] mb-1">📚 영어책 3권</h4>
+                      <div className="flex justify-between items-center">
+                        <p className="text-gray-400 text-[9px]">100P</p>
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${activeData.learning.englishBook.done ? 'text-[#E9C46A]' : 'text-gray-200'}`}>
+                          {activeData.learning.englishBook.done ? <IconCheckCircle /> : <IconCircle />}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </section>
+
+              {/* 리워드 상점 */}
+              <section>
+                <div className="flex justify-between items-end mb-3 border-l-4 border-[#E9C46A] pl-2">
+                  <h2 className="text-lg font-black text-[#1D3557]">코인 상점 교환소</h2>
+                  <span className="text-[10px] text-gray-400">항목을 탭하면 잔액이 차감됩니다.</span>
+                </div>
+
+                <div className="bg-white rounded-[1.5rem] p-4 shadow-md border border-gray-100">
+                  <div className="grid grid-cols-2 gap-3">
+                    {rewardItems.map((item) => {
+                      const canAfford = activePts.currentBalance >= item.cost;
+                      return (
+                        <button 
+                          key={item.id}
+                          onClick={() => purchaseReward(item.cost, item.name)}
+                          className={`p-3 rounded-xl border text-center transition-all transform active:scale-95 flex flex-col items-center justify-center ${
+                            canAfford ? 'bg-white border-gray-200 hover:shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'
+                          }`}
+                        >
+                          <span className="mb-1" style={{ color: item.color, width: '18px', height: '18px' }}><item.icon /></span>
+                          <p className="text-[10px] text-gray-500 mb-0.5 font-bold">{item.name}</p>
+                          <p className={`font-black text-sm ${canAfford ? 'text-[#1D3557]' : 'text-gray-400'}`}>
+                            {item.cost.toLocaleString()}P
+                          </p>
+                          <div className="w-full h-1 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                            <div className="h-full transition-all duration-500" style={{ width: `${Math.min(100, (activePts.currentBalance / item.cost) * 100)}%`, backgroundColor: item.color }}></div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+
             </main>
           )}
         </div>
