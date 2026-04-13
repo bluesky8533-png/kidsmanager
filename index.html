@@ -81,9 +81,12 @@
       { id: 5, text: '가방/외투 정리', done: false }
     ];
 
+    // 학습 과업 구조 분리 및 독립 (국어, 영어, 연산 세분화)
     const getInitialLearning = () => ({
       math: { baseDone: false, extra: 0 },
-      language: { baseDone: false, extra: 0 },
+      korean: { baseDone: false, extra: 0 },
+      english: { baseDone: false, extra: 0 },
+      mathOp: { extra: 0 }, // 연산은 추가학습에만 존재
       elihigh: { done: false },
       englishBook: { done: false }
     });
@@ -112,15 +115,14 @@
       const kidsNames = ['듄지', '효니', '뀨리'];
       const [activeTab, setActiveTab] = useState(kidsNames[0]);
       const [currentTime, setCurrentTime] = useState(new Date());
-      const [testMode, setTestMode] = useState(false); // 시간 조건 무시 테스트 모드
+      const [testMode, setTestMode] = useState(false);
       const [notification, setNotification] = useState(null);
       const notifyTimeout = useRef(null);
 
-      // 로컬 스토리지 키 설정
-      const STORAGE_KEY = 'kidLevelUpData_v2';
-      const LAST_DATE_KEY = 'kidLevelUpLastDate_v2';
+      // 데이터 마이그레이션(v3): 데이터 구조 변경에 따른 로컬 충돌 방지
+      const STORAGE_KEY = 'kidLevelUpData_v3';
+      const LAST_DATE_KEY = 'kidLevelUpLastDate_v3';
 
-      // 다중 프로필 데이터 (로컬 스토리지에서 불러오기)
       const [kidsData, setKidsData] = useState(() => {
         const savedData = localStorage.getItem(STORAGE_KEY);
         const savedDate = localStorage.getItem(LAST_DATE_KEY);
@@ -130,7 +132,6 @@
         if (savedData) {
           initialData = JSON.parse(savedData);
           
-          // 날짜가 다르면(다음날 접속) 일일 미션 초기화 (포인트, 히스토리는 유지)
           if (savedDate !== currentDate) {
             Object.keys(initialData).forEach(kidName => {
               if(initialData[kidName]) {
@@ -152,23 +153,19 @@
         return initialData;
       });
 
-      // 데이터가 변경될 때마다 로컬 스토리지에 자동 저장
       useEffect(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(kidsData));
       }, [kidsData]);
 
-      // 팝업 및 폼 상태
       const [showPopup, setShowPopup] = useState(false);
       const [adminForm, setAdminForm] = useState({ target: '듄지', amount: '', desc: '', type: 'add' });
       const [quickActionTarget, setQuickActionTarget] = useState('듄지');
 
-      // 1분마다 시계 갱신 및 날짜 변경 체크
       useEffect(() => {
         const timer = setInterval(() => {
           const now = new Date();
           setCurrentTime(now);
 
-          // 앱을 켜둔 상태에서 자정이 지나 날짜가 바뀌었는지 확인
           const storedDate = localStorage.getItem(LAST_DATE_KEY);
           if (storedDate && storedDate !== now.toDateString()) {
             setKidsData(prev => {
@@ -189,30 +186,37 @@
         return () => clearInterval(timer);
       }, []);
 
-      // 토스트 알림 생성기
       const showNotification = (message, type = 'info') => {
         if (notifyTimeout.current) clearTimeout(notifyTimeout.current);
         setNotification({ message, type });
         notifyTimeout.current = setTimeout(() => setNotification(null), 3000);
       };
 
-      // 포인트 산출 핵심 엔진 (필수 학습 완료 여부에 따른 포인트 적립 차등화)
+      // 포인트 산출 로직
       const calcKidPoints = (kid) => {
-        const isMandatoryDone = kid.learning.math.baseDone && kid.learning.englishBook.done;
+        // 필수 학습 4종 완료 여부
+        const isMandatoryDone = kid.learning.math.baseDone && 
+                                kid.learning.korean.baseDone && 
+                                kid.learning.english.baseDone && 
+                                kid.learning.englishBook.done;
         
         const hPts = kid.habits.filter(h => h.done).length * 20;
         const bPts = kid.earnedBonus ? 20 : 0;
         
-        // 필수 학습 포인트
+        // 필수 학습 포인트 산정
         const mathBasePts = kid.learning.math.baseDone ? 100 : 0;
-        const engPts = kid.learning.englishBook.done ? 100 : 0;
-        const mandatoryPts = mathBasePts + engPts;
+        const korBasePts = kid.learning.korean.baseDone ? 100 : 0;
+        const engBasePts = kid.learning.english.baseDone ? 100 : 0;
+        const engBookPts = kid.learning.englishBook.done ? 100 : 0;
+        const mandatoryPts = mathBasePts + korBasePts + engBasePts + engBookPts;
 
-        // 추가 학습 포인트 (필수 학습이 완료된 경우에만 합산)
+        // 추가 학습 포인트 산정 (필수 완료 조건 충족 시)
         let extraPts = 0;
         if (isMandatoryDone) {
            extraPts += (kid.learning.math.extra * 150);
-           extraPts += (kid.learning.language.baseDone ? 100 : 0) + (kid.learning.language.extra * 120);
+           extraPts += (kid.learning.korean.extra * 120);
+           extraPts += (kid.learning.english.extra * 120);
+           extraPts += (kid.learning.mathOp.extra * 100);
            extraPts += (kid.learning.elihigh.done ? 100 : 0);
         }
         
@@ -227,7 +231,6 @@
         };
       };
 
-      // 개별 자녀 데이터 업데이트 Helper
       const updateKidData = (kidName, updater) => {
         setKidsData(prev => ({
           ...prev,
@@ -235,11 +238,6 @@
         }));
       };
 
-      // ----------------------------------------------------
-      // Business Logic Actions
-      // ----------------------------------------------------
-
-      // 1. 습관 체크 (보너스 지급 로직 포함)
       const toggleHabit = (id) => {
         if(activeTab === 'ADMIN') return;
         
@@ -265,7 +263,6 @@
         });
       };
 
-      // 2. 학습 코인 업데이트 (필수학습 선행 조건 강화)
       const updateLearning = (type, field, value) => {
         if(activeTab === 'ADMIN') return;
 
@@ -273,27 +270,31 @@
           const newLearning = { ...kid.learning };
           const newTaskState = { ...newLearning[type] };
 
-          const isMandatoryDone = kid.learning.math.baseDone && kid.learning.englishBook.done;
+          const isMandatoryDone = kid.learning.math.baseDone && 
+                                  kid.learning.korean.baseDone && 
+                                  kid.learning.english.baseDone && 
+                                  kid.learning.englishBook.done;
 
-          // 추가 학습을 시도하는 경우 필수 학습이 되어있는지 검증
+          // 추가 학습 시도 검증 (더하기 버튼 클릭 및 엘리하이 체크 시)
           const isTryingToEarnExtra = 
             (type === 'math' && field === 'extra' && value === 1) ||
-            (type === 'language' && field === 'baseDone' && value === true) ||
-            (type === 'language' && field === 'extra' && value === 1) ||
+            (type === 'korean' && field === 'extra' && value === 1) ||
+            (type === 'english' && field === 'extra' && value === 1) ||
+            (type === 'mathOp' && field === 'extra' && value === 1) ||
             (type === 'elihigh' && field === 'done' && value === true);
 
           if (isTryingToEarnExtra && !isMandatoryDone) {
-            showNotification('⭐️ 필수 학습(수학, 영어도서관)을 모두 완료해야 추가 포인트를 얻을 수 있습니다.', 'error');
-            return kid; // 상태 변경 없이 조기 반환
+            showNotification('⭐️ 필수 학습 4종(수학, 국어, 영어, 영어도서관)을 모두 완료해야 추가 포인트를 얻을 수 있습니다.', 'error');
+            return kid;
           }
 
-          // 상태 업데이트
           if (field === 'baseDone') {
             newTaskState.baseDone = value;
             if (!value && newTaskState.extra !== undefined) newTaskState.extra = 0;
           } else if (field === 'extra') {
-            if (type === 'language' && !newTaskState.baseDone) {
-                showNotification('국/영/연산 기본 분량을 먼저 완료해야 합니다.', 'error');
+            // 국어, 영어의 경우 기본 분량 선행 확인
+            if ((type === 'korean' || type === 'english') && !newTaskState.baseDone) {
+                showNotification('해당 과목의 기본 분량을 먼저 완료해야 추가 학습이 가능합니다.', 'error');
                 return kid;
             }
             newTaskState[field] = Math.max(0, newTaskState[field] + value);
@@ -306,7 +307,6 @@
         });
       };
 
-      // 3. 리워드 구매
       const purchaseReward = (cost, name) => {
         if(activeTab === 'ADMIN') return;
 
@@ -326,7 +326,20 @@
         }
       };
 
-      // 4. 관리자 수동 처리 (일반 폼)
+      const cancelPurchase = (kidName, historyId, amount) => {
+        updateKidData(kidName, (kid) => {
+          const targetLog = kid.history.find(h => h.id === historyId);
+          if (!targetLog || targetLog.type !== 'spend') return kid;
+          
+          return {
+            ...kid,
+            usedPoints: Math.max(0, kid.usedPoints - amount),
+            history: kid.history.filter(h => h.id !== historyId)
+          };
+        });
+        showNotification(`구매가 취소되어 ${amount}P가 반환되었습니다.`, 'success');
+      };
+
       const handleAdminAdjustment = (e) => {
         e.preventDefault();
         const amt = parseInt(adminForm.amount);
@@ -337,12 +350,10 @@
         setAdminForm({ ...adminForm, amount: '', desc: '' });
       };
 
-      // 5. 관리자 퀵 액션
       const handleQuickAction = (type, amount, desc) => {
         executeAdjustment(quickActionTarget, type === 'add', amount, `[퀵] ${desc}`);
       };
 
-      // [공통 로직] 포인트 조정 및 히스토리 기록기
       const executeAdjustment = (targetName, isAdd, amount, desc) => {
         const timestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
         const finalAmt = isAdd ? amount : -amount;
@@ -363,7 +374,8 @@
 
       const activeData = activeTab !== 'ADMIN' ? kidsData[activeTab] : null;
       const activePts = activeData ? calcKidPoints(activeData) : null;
-      const isMandatoryDone = activeData ? (activeData.learning.math.baseDone && activeData.learning.englishBook.done) : false;
+      const isMandatoryDone = activeData ? 
+        (activeData.learning.math.baseDone && activeData.learning.korean.baseDone && activeData.learning.english.baseDone && activeData.learning.englishBook.done) : false;
 
       return (
         <div className="min-h-screen text-[#1D3557] font-sans pb-24 relative overflow-x-hidden pt-safe">
@@ -569,12 +581,12 @@
 
               {/* History Log */}
               <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-gray-100">
-                <h3 className="text-sm font-black mb-4">최근 처리 내역 로그</h3>
+                <h3 className="text-sm font-black mb-4">최근 처리 내역 로그 (구매 취소 가능)</h3>
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                   {kidsNames.flatMap(n => kidsData[n].history.map(h => ({...h, kid: n})))
                     .sort((a,b) => b.id - a.id)
                     .map((item) => (
-                    <div key={`${item.kid}-${item.id}`} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                    <div key={`${item.kid}-${item.id}`} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors">
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] bg-[#1D3557] text-white px-2 py-0.5 rounded-full font-bold">{item.kid}</span>
@@ -582,9 +594,20 @@
                         </div>
                         <p className="text-xs font-bold text-[#1D3557] mt-1">{item.desc}</p>
                       </div>
-                      <span className={`text-sm font-black ${item.type === 'spend' || item.type === 'admin_sub' ? 'text-[#E76F51]' : 'text-[#06D6A0]'}`}>
-                        {item.type === 'spend' || item.type === 'admin_sub' ? '-' : '+'}{item.amount}P
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm font-black ${item.type === 'spend' || item.type === 'admin_sub' ? 'text-[#E76F51]' : 'text-[#06D6A0]'}`}>
+                          {item.type === 'spend' || item.type === 'admin_sub' ? '-' : '+'}{item.amount}P
+                        </span>
+                        {/* 구매 내역일 경우에만 취소 버튼 표시 */}
+                        {item.type === 'spend' && (
+                          <button 
+                            onClick={() => cancelPurchase(item.kid, item.id, item.amount)}
+                            className="px-2 py-1 bg-red-50 text-red-500 rounded-lg text-[10px] font-bold border border-red-200 hover:bg-red-500 hover:text-white transition-colors active:scale-95 shadow-sm"
+                          >
+                            취소
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                   {kidsNames.every(n => kidsData[n].history.length === 0) && (
@@ -660,11 +683,11 @@
                   {/* [1] 필수 학습 영역 */}
                   <div className="bg-white p-4 rounded-[1.5rem] shadow-sm border-2 border-[#E76F51]/30">
                     <h3 className="text-sm font-black text-[#E76F51] mb-3 flex items-center gap-1">
-                      ⭐️ 필수 학습 <span className="text-[10px] text-gray-400 font-normal ml-1">반드시 먼저 완료해야 합니다</span>
+                      ⭐️ 필수 학습 <span className="text-[10px] text-gray-400 font-normal ml-1">반드시 먼저 4종 모두 완료해야 합니다</span>
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       
-                      {/* 수학(기본+응용/최상위) */}
+                      {/* 수학 */}
                       <button onClick={() => updateLearning('math', 'baseDone', !activeData.learning.math.baseDone)}
                         className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${activeData.learning.math.baseDone ? 'bg-[#E76F51]/10 border-[#E76F51]' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
                         <div className="text-left">
@@ -676,7 +699,31 @@
                         </div>
                       </button>
 
-                      {/* 영어도서관 3권 읽기 */}
+                      {/* 국어 */}
+                      <button onClick={() => updateLearning('korean', 'baseDone', !activeData.learning.korean.baseDone)}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${activeData.learning.korean.baseDone ? 'bg-[#457B9D]/10 border-[#457B9D]' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                        <div className="text-left">
+                          <h4 className={`font-black text-xs ${activeData.learning.korean.baseDone ? 'text-[#457B9D]' : 'text-gray-600'}`}>📕 국어(기본 2장)</h4>
+                          <p className="text-[10px] text-gray-400">100P</p>
+                        </div>
+                        <div className={`w-5 h-5 ${activeData.learning.korean.baseDone ? 'text-[#457B9D]' : 'text-gray-300'}`}>
+                          {activeData.learning.korean.baseDone ? <IconCheckCircle /> : <IconCircle />}
+                        </div>
+                      </button>
+
+                      {/* 영어 */}
+                      <button onClick={() => updateLearning('english', 'baseDone', !activeData.learning.english.baseDone)}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${activeData.learning.english.baseDone ? 'bg-[#2A9D8F]/10 border-[#2A9D8F]' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                        <div className="text-left">
+                          <h4 className={`font-black text-xs ${activeData.learning.english.baseDone ? 'text-[#2A9D8F]' : 'text-gray-600'}`}>📘 영어(기본 2장)</h4>
+                          <p className="text-[10px] text-gray-400">100P</p>
+                        </div>
+                        <div className={`w-5 h-5 ${activeData.learning.english.baseDone ? 'text-[#2A9D8F]' : 'text-gray-300'}`}>
+                          {activeData.learning.english.baseDone ? <IconCheckCircle /> : <IconCircle />}
+                        </div>
+                      </button>
+
+                      {/* 영어도서관 */}
                       <button onClick={() => updateLearning('englishBook', 'done', !activeData.learning.englishBook.done)}
                         className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${activeData.learning.englishBook.done ? 'bg-[#E9C46A]/10 border-[#E9C46A]' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
                         <div className="text-left">
@@ -687,6 +734,7 @@
                           {activeData.learning.englishBook.done ? <IconCheckCircle /> : <IconCircle />}
                         </div>
                       </button>
+
                     </div>
                   </div>
 
@@ -696,8 +744,8 @@
                     {/* 잠금 오버레이 (필수 학습 미완료 시) */}
                     {!isMandatoryDone && (
                       <div className="absolute inset-0 z-10 bg-white/40 backdrop-blur-[1.5px] rounded-[1.5rem] flex items-center justify-center cursor-not-allowed">
-                         <div className="bg-[#1D3557] text-white text-xs font-bold px-4 py-2 rounded-full flex items-center gap-2 shadow-lg animate-pulse">
-                           <IconLock /> 필수 학습을 먼저 완료하세요
+                         <div className="bg-[#1D3557] text-white text-xs font-bold px-4 py-2 rounded-full flex items-center gap-2 shadow-lg animate-pulse text-center">
+                           <IconLock /> 필수 학습 4종을 먼저 완료하세요
                          </div>
                       </div>
                     )}
@@ -721,28 +769,43 @@
                         </div>
                       </div>
 
-                      {/* 국/영/연산 통합 */}
-                      <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2">
-                         <div className="flex justify-between items-center">
-                            <div>
-                              <h4 className="font-black text-xs text-gray-700">📖 국/영/연산</h4>
-                              <p className="text-[10px] text-gray-400">기본 100P / 추가 셋당 120P</p>
-                            </div>
-                            <span className="font-black text-[#1D3557] text-sm">
-                              {(activeData.learning.language.baseDone ? 100 : 0) + (activeData.learning.language.extra * 120)}P
-                            </span>
-                         </div>
-                         <div className="flex gap-2">
-                           <button onClick={() => updateLearning('language', 'baseDone', !activeData.learning.language.baseDone)}
-                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors shadow-sm ${activeData.learning.language.baseDone ? 'bg-[#457B9D] text-white border-transparent' : 'bg-white border border-gray-200 text-gray-600'}`}>
-                              {activeData.learning.language.baseDone ? '기본 분량 체크완료' : '기본 분량 체크'}
-                            </button>
-                            <div className={`flex flex-1 items-center bg-white rounded-lg border shadow-sm overflow-hidden transition-all ${activeData.learning.language.baseDone ? 'border-gray-200' : 'border-gray-100 opacity-40'}`}>
-                               <button onClick={() => updateLearning('language', 'extra', -1)} disabled={!activeData.learning.language.baseDone} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100">-</button>
-                               <span className="flex-1 text-center font-bold text-[10px]">{activeData.learning.language.extra}셋</span>
-                               <button onClick={() => updateLearning('language', 'extra', 1)} disabled={!activeData.learning.language.baseDone} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100">+</button>
-                            </div>
-                         </div>
+                      {/* 국어 추가 */}
+                      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div>
+                          <h4 className="font-black text-xs text-gray-700">📕 국어 추가</h4>
+                          <p className="text-[10px] text-gray-400">2장(1셋)당 120P</p>
+                        </div>
+                        <div className="flex items-center bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                           <button onClick={() => updateLearning('korean', 'extra', -1)} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100 active:bg-gray-200">-</button>
+                           <span className="w-12 text-center font-bold text-xs text-[#1D3557]">{activeData.learning.korean.extra}셋</span>
+                           <button onClick={() => updateLearning('korean', 'extra', 1)} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100 active:bg-gray-200">+</button>
+                        </div>
+                      </div>
+
+                      {/* 영어 추가 */}
+                      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div>
+                          <h4 className="font-black text-xs text-gray-700">📘 영어 추가</h4>
+                          <p className="text-[10px] text-gray-400">2장(1셋)당 120P</p>
+                        </div>
+                        <div className="flex items-center bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                           <button onClick={() => updateLearning('english', 'extra', -1)} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100 active:bg-gray-200">-</button>
+                           <span className="w-12 text-center font-bold text-xs text-[#1D3557]">{activeData.learning.english.extra}셋</span>
+                           <button onClick={() => updateLearning('english', 'extra', 1)} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100 active:bg-gray-200">+</button>
+                        </div>
+                      </div>
+
+                      {/* 연산 (추가 전용) */}
+                      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div>
+                          <h4 className="font-black text-xs text-indigo-500">🧮 연산 (추가전용)</h4>
+                          <p className="text-[10px] text-gray-400">2장(1셋)당 100P</p>
+                        </div>
+                        <div className="flex items-center bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                           <button onClick={() => updateLearning('mathOp', 'extra', -1)} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100 active:bg-gray-200">-</button>
+                           <span className="w-12 text-center font-bold text-xs text-[#1D3557]">{activeData.learning.mathOp.extra}셋</span>
+                           <button onClick={() => updateLearning('mathOp', 'extra', 1)} className="px-3 py-1.5 text-gray-600 font-black hover:bg-gray-100 active:bg-gray-200">+</button>
+                        </div>
                       </div>
 
                       {/* 엘리하이 */}
