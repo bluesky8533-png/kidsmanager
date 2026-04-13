@@ -116,21 +116,76 @@
       const [notification, setNotification] = useState(null);
       const notifyTimeout = useRef(null);
 
-      // 다중 프로필 인메모리 데이터
-      const [kidsData, setKidsData] = useState({
-        '듄지': createKidState(),
-        '효니': createKidState(),
-        '뀨리': createKidState()
+      // 로컬 스토리지 키 설정
+      const STORAGE_KEY = 'kidLevelUpData_v2';
+      const LAST_DATE_KEY = 'kidLevelUpLastDate_v2';
+
+      // 다중 프로필 데이터 (로컬 스토리지에서 불러오기)
+      const [kidsData, setKidsData] = useState(() => {
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        const savedDate = localStorage.getItem(LAST_DATE_KEY);
+        const currentDate = new Date().toDateString();
+
+        let initialData;
+        if (savedData) {
+          initialData = JSON.parse(savedData);
+          
+          // 날짜가 다르면(다음날 접속) 일일 미션 초기화 (포인트, 히스토리는 유지)
+          if (savedDate !== currentDate) {
+            Object.keys(initialData).forEach(kidName => {
+              if(initialData[kidName]) {
+                initialData[kidName].habits = getInitialHabits();
+                initialData[kidName].learning = getInitialLearning();
+                initialData[kidName].earnedBonus = false;
+              }
+            });
+          }
+        } else {
+          initialData = {
+            '듄지': createKidState(),
+            '효니': createKidState(),
+            '뀨리': createKidState()
+          };
+        }
+        
+        localStorage.setItem(LAST_DATE_KEY, currentDate);
+        return initialData;
       });
+
+      // 데이터가 변경될 때마다 로컬 스토리지에 자동 저장
+      useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(kidsData));
+      }, [kidsData]);
 
       // 팝업 및 폼 상태
       const [showPopup, setShowPopup] = useState(false);
       const [adminForm, setAdminForm] = useState({ target: '듄지', amount: '', desc: '', type: 'add' });
       const [quickActionTarget, setQuickActionTarget] = useState('듄지');
 
-      // 1분마다 시계 갱신
+      // 1분마다 시계 갱신 및 날짜 변경 체크
       useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+        const timer = setInterval(() => {
+          const now = new Date();
+          setCurrentTime(now);
+
+          // 앱을 켜둔 상태에서 자정이 지나 날짜가 바뀌었는지 확인
+          const storedDate = localStorage.getItem(LAST_DATE_KEY);
+          if (storedDate && storedDate !== now.toDateString()) {
+            setKidsData(prev => {
+              const newData = { ...prev };
+              Object.keys(newData).forEach(kidName => {
+                if(newData[kidName]) {
+                  newData[kidName].habits = getInitialHabits();
+                  newData[kidName].learning = getInitialLearning();
+                  newData[kidName].earnedBonus = false;
+                }
+              });
+              return newData;
+            });
+            localStorage.setItem(LAST_DATE_KEY, now.toDateString());
+            showNotification('새로운 하루! 일일 미션이 초기화되었습니다.', 'info');
+          }
+        }, 60000);
         return () => clearInterval(timer);
       }, []);
 
