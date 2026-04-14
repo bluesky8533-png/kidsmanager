@@ -30,7 +30,6 @@
     .animate-float { animation: float 3s ease-in-out infinite; }
     .animate-toast { animation: slide-up 3s ease-in-out forwards; }
     
-    /* PWA Touch 최적화 및 텍스트 선택 방지 */
     body {
       -webkit-touch-callout: none;
       -webkit-user-select: none;
@@ -41,7 +40,6 @@
       background-color: #F0F4F8;
     }
     
-    /* 탭 스크롤바 숨김 */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
@@ -81,12 +79,11 @@
       { id: 5, text: '가방/외투 정리', done: false }
     ];
 
-    // 학습 과업 구조 분리 및 독립 (국어, 영어, 연산 세분화)
     const getInitialLearning = () => ({
       math: { baseDone: false, extra: 0 },
       korean: { baseDone: false, extra: 0 },
       english: { baseDone: false, extra: 0 },
-      mathOp: { extra: 0 }, // 연산은 추가학습에만 존재
+      mathOp: { extra: 0 },
       elihigh: { done: false },
       englishBook: { done: false }
     });
@@ -95,6 +92,7 @@
       habits: getInitialHabits(),
       learning: getInitialLearning(),
       earnedBonus: false,
+      savedPoints: 0, // [논리적 수정사항] 누적 저금통 필드 신설
       usedPoints: 0,
       adminAdjustments: 0,
       history: []
@@ -107,11 +105,37 @@
       { id: 'date', name: '데이트권', cost: 3000, icon: IconTrophy, color: '#E76F51' }
     ];
 
+    // [논리적 수정사항] 당일 발생한 포인트 계산을 독립 함수로 분리하여 재사용성 확보
+    const calculateDailyEarned = (kid) => {
+        const isMandatoryDone = kid.learning.math.baseDone && 
+                                kid.learning.korean.baseDone && 
+                                kid.learning.english.baseDone && 
+                                kid.learning.englishBook.done;
+        
+        const hPts = kid.habits.filter(h => h.done).length * 20;
+        const bPts = kid.earnedBonus ? 20 : 0;
+        
+        const mathBasePts = kid.learning.math.baseDone ? 100 : 0;
+        const korBasePts = kid.learning.korean.baseDone ? 100 : 0;
+        const engBasePts = kid.learning.english.baseDone ? 100 : 0;
+        const engBookPts = kid.learning.englishBook.done ? 100 : 0;
+        const mandatoryPts = mathBasePts + korBasePts + engBasePts + engBookPts;
+
+        let extraPts = 0;
+        if (isMandatoryDone) {
+           extraPts += (kid.learning.math.extra * 150);
+           extraPts += (kid.learning.korean.extra * 120);
+           extraPts += (kid.learning.english.extra * 120);
+           extraPts += ((kid.learning.mathOp?.extra || 0) * 100);
+           extraPts += (kid.learning.elihigh.done ? 100 : 0);
+        }
+        return hPts + bPts + mandatoryPts + extraPts;
+    };
+
     // ----------------------------------------------------
     // Main Component
     // ----------------------------------------------------
     const App = () => {
-      // 공통 상태
       const kidsNames = ['듄지', '효니', '뀨리'];
       const [activeTab, setActiveTab] = useState(kidsNames[0]);
       const [currentTime, setCurrentTime] = useState(new Date());
@@ -119,9 +143,9 @@
       const [notification, setNotification] = useState(null);
       const notifyTimeout = useRef(null);
 
-      // 데이터 마이그레이션(v3): 데이터 구조 변경에 따른 로컬 충돌 방지
-      const STORAGE_KEY = 'kidLevelUpData_v3';
-      const LAST_DATE_KEY = 'kidLevelUpLastDate_v3';
+      // [논리적 수정사항] v4 마이그레이션 적용 (기존 데이터 충돌 완전 배제)
+      const STORAGE_KEY = 'kidLevelUpData_v4';
+      const LAST_DATE_KEY = 'kidLevelUpLastDate_v4';
 
       const [kidsData, setKidsData] = useState(() => {
         const savedData = localStorage.getItem(STORAGE_KEY);
@@ -132,12 +156,20 @@
         if (savedData) {
           initialData = JSON.parse(savedData);
           
+          // [논리적 수정사항: 대처법] 날짜 변경 시 누적금액(savedPoints) 이관 처리
           if (savedDate !== currentDate) {
             Object.keys(initialData).forEach(kidName => {
               if(initialData[kidName]) {
-                initialData[kidName].habits = getInitialHabits();
-                initialData[kidName].learning = getInitialLearning();
-                initialData[kidName].earnedBonus = false;
+                const kid = initialData[kidName];
+                
+                // 1. 체크박스 초기화 전, 어제 달성한 실시간 포인트를 계산하여 누적 저금통에 합산
+                const yesterdayEarned = calculateDailyEarned(kid);
+                kid.savedPoints = (kid.savedPoints || 0) + yesterdayEarned;
+                
+                // 2. 그 후 체크박스 상태 초기화
+                kid.habits = getInitialHabits();
+                kid.learning = getInitialLearning();
+                kid.earnedBonus = false;
               }
             });
           }
@@ -161,6 +193,7 @@
       const [adminForm, setAdminForm] = useState({ target: '듄지', amount: '', desc: '', type: 'add' });
       const [quickActionTarget, setQuickActionTarget] = useState('듄지');
 
+      // 실시간 날짜 변경 감지 타이머
       useEffect(() => {
         const timer = setInterval(() => {
           const now = new Date();
@@ -172,15 +205,20 @@
               const newData = { ...prev };
               Object.keys(newData).forEach(kidName => {
                 if(newData[kidName]) {
-                  newData[kidName].habits = getInitialHabits();
-                  newData[kidName].learning = getInitialLearning();
-                  newData[kidName].earnedBonus = false;
+                  const kid = newData[kidName];
+                  // 타이머 이벤트에서도 동일하게 누적 저금통 이관 처리
+                  const yesterdayEarned = calculateDailyEarned(kid);
+                  kid.savedPoints = (kid.savedPoints || 0) + yesterdayEarned;
+                  
+                  kid.habits = getInitialHabits();
+                  kid.learning = getInitialLearning();
+                  kid.earnedBonus = false;
                 }
               });
               return newData;
             });
             localStorage.setItem(LAST_DATE_KEY, now.toDateString());
-            showNotification('새로운 하루! 일일 미션이 초기화되었습니다.', 'info');
+            showNotification('새로운 하루! 일일 미션이 초기화되고 포인트가 누적되었습니다.', 'info');
           }
         }, 60000);
         return () => clearInterval(timer);
@@ -192,41 +230,22 @@
         notifyTimeout.current = setTimeout(() => setNotification(null), 3000);
       };
 
-      // 포인트 산출 로직
+      // [논리적 수정사항] 종합 잔액 계산식 수정 (누적 저금통 + 실시간 오늘 포인트)
       const calcKidPoints = (kid) => {
-        // 필수 학습 4종 완료 여부
-        const isMandatoryDone = kid.learning.math.baseDone && 
-                                kid.learning.korean.baseDone && 
-                                kid.learning.english.baseDone && 
-                                kid.learning.englishBook.done;
+        const dailyLiveEarned = calculateDailyEarned(kid);
+        const savedPts = kid.savedPoints || 0;
+        
+        // 총 잔액 = 오늘 번 포인트 + 예전에 저금된 포인트 + 관리자 수동 지급 - 사용 포인트
+        const currentBalance = dailyLiveEarned + savedPts + kid.adminAdjustments - kid.usedPoints;
         
         const hPts = kid.habits.filter(h => h.done).length * 20;
         const bPts = kid.earnedBonus ? 20 : 0;
-        
-        // 필수 학습 포인트 산정
-        const mathBasePts = kid.learning.math.baseDone ? 100 : 0;
-        const korBasePts = kid.learning.korean.baseDone ? 100 : 0;
-        const engBasePts = kid.learning.english.baseDone ? 100 : 0;
-        const engBookPts = kid.learning.englishBook.done ? 100 : 0;
-        const mandatoryPts = mathBasePts + korBasePts + engBasePts + engBookPts;
+        const habitPts = hPts + bPts;
 
-        // 추가 학습 포인트 산정 (필수 완료 조건 충족 시)
-        let extraPts = 0;
-        if (isMandatoryDone) {
-           extraPts += (kid.learning.math.extra * 150);
-           extraPts += (kid.learning.korean.extra * 120);
-           extraPts += (kid.learning.english.extra * 120);
-           extraPts += (kid.learning.mathOp.extra * 100);
-           extraPts += (kid.learning.elihigh.done ? 100 : 0);
-        }
-        
-        const dailyLiveEarned = hPts + bPts + mandatoryPts + extraPts;
-        const currentBalance = dailyLiveEarned + kid.adminAdjustments - kid.usedPoints;
-        
         return { 
-          habitPts: hPts, 
-          learningPts: mandatoryPts + extraPts, 
+          habitPts, 
           dailyLiveEarned, 
+          savedPoints: savedPts,
           currentBalance 
         };
       };
@@ -275,7 +294,6 @@
                                   kid.learning.english.baseDone && 
                                   kid.learning.englishBook.done;
 
-          // 추가 학습 시도 검증 (더하기 버튼 클릭 및 엘리하이 체크 시)
           const isTryingToEarnExtra = 
             (type === 'math' && field === 'extra' && value === 1) ||
             (type === 'korean' && field === 'extra' && value === 1) ||
@@ -292,7 +310,6 @@
             newTaskState.baseDone = value;
             if (!value && newTaskState.extra !== undefined) newTaskState.extra = 0;
           } else if (field === 'extra') {
-            // 국어, 영어의 경우 기본 분량 선행 확인
             if ((type === 'korean' || type === 'english') && !newTaskState.baseDone) {
                 showNotification('해당 과목의 기본 분량을 먼저 완료해야 추가 학습이 가능합니다.', 'error');
                 return kid;
@@ -477,21 +494,26 @@
                       <div className="absolute top-0 right-0 w-16 h-16 bg-gray-50 rounded-bl-[100%] z-0"></div>
                       <h3 className="text-lg font-black relative z-10">{name}</h3>
                       <div className="mt-4 space-y-1 relative z-10">
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>오늘 과업 획득</span>
-                          <span className="font-bold text-[#457B9D]">+{pts.dailyLiveEarned}P</span>
+                        {/* 논리적 수정 반영 영역: 누적 저금통 표시 추가 */}
+                        <div className="flex justify-between text-xs text-gray-500 bg-blue-50 p-1.5 rounded">
+                          <span>어제까지 누적된 포인트</span>
+                          <span className="font-bold text-[#457B9D]">+{pts.savedPoints}P</span>
                         </div>
-                        <div className="flex justify-between text-xs text-gray-500">
+                        <div className="flex justify-between text-xs text-gray-500 mt-1 p-1.5">
+                          <span>오늘 진행중인 획득 예상</span>
+                          <span className="font-bold text-[#2A9D8F]">+{pts.dailyLiveEarned}P</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 p-1.5">
                           <span>누적 사용 (차감)</span>
                           <span className="font-bold text-[#E76F51]">-{kidsData[name].usedPoints}P</span>
                         </div>
-                        <div className="flex justify-between text-xs text-gray-500">
+                        <div className="flex justify-between text-xs text-gray-500 p-1.5">
                           <span>수동 조정 (보너스/패널티)</span>
                           <span className="font-bold text-gray-700">{kidsData[name].adminAdjustments}P</span>
                         </div>
                         <div className="h-px bg-gray-100 my-2"></div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-bold">현재 사용 가능 잔액</span>
+                          <span className="text-sm font-bold">현재 사용 가능 총 잔액</span>
                           <span className="text-xl font-black text-[#1D3557]">{pts.currentBalance}P</span>
                         </div>
                       </div>
@@ -598,7 +620,6 @@
                         <span className={`text-sm font-black ${item.type === 'spend' || item.type === 'admin_sub' ? 'text-[#E76F51]' : 'text-[#06D6A0]'}`}>
                           {item.type === 'spend' || item.type === 'admin_sub' ? '-' : '+'}{item.amount}P
                         </span>
-                        {/* 구매 내역일 경우에만 취소 버튼 표시 */}
                         {item.type === 'spend' && (
                           <button 
                             onClick={() => cancelPurchase(item.kid, item.id, item.amount)}
@@ -675,7 +696,7 @@
                 </div>
               </section>
 
-              {/* 학습 코인 (새롭게 개편된 구조) */}
+              {/* 학습 코인 */}
               <section>
                 <h2 className="text-lg font-black mb-3 border-l-4 border-[#E76F51] pl-2 text-[#1D3557]">학습 과업</h2>
                 <div className="space-y-4">
@@ -741,7 +762,6 @@
                   {/* [2] 추가 학습 영역 (필수 학습 완료 시 활성화) */}
                   <div className={`bg-white p-4 rounded-[1.5rem] shadow-sm border-2 transition-all relative ${isMandatoryDone ? 'border-[#457B9D]/40' : 'border-gray-100 opacity-60'}`}>
                     
-                    {/* 잠금 오버레이 (필수 학습 미완료 시) */}
                     {!isMandatoryDone && (
                       <div className="absolute inset-0 z-10 bg-white/40 backdrop-blur-[1.5px] rounded-[1.5rem] flex items-center justify-center cursor-not-allowed">
                          <div className="bg-[#1D3557] text-white text-xs font-bold px-4 py-2 rounded-full flex items-center gap-2 shadow-lg animate-pulse text-center">
